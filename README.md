@@ -25,5 +25,6 @@ Can also be invoked directly with `/to-the-point`.
 
 `evals/` holds the A/B harness: three coding tasks, each run with the skill and
 with no skill, graded on 20 assertions covering both the code and the reply.
-Current: **18/18 with the skill vs 16/20 baseline, at half the reply length.**
-See `evals/RESULTS.md`.
+Current: **17/17 with the skill vs 14/18 baseline, at half the reply length.**
+See `evals/RESULTS.md` — including the finding that the skill's own length was
+the biggest token cost it controlled, which is why SKILL.md is 44 lines.
