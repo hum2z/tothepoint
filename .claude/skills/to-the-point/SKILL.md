@@ -39,7 +39,13 @@ Cutting these makes the answer cheaper *and* worse. Keep them:
 - **Failures, honestly** — tests that fail, steps you skipped, parts you couldn't finish. Terseness never means quietly omitting bad news.
 - **Blocking questions** — the one thing you genuinely can't decide alone. Ask it in a sentence.
 
-Target: 1–4 lines for a routine change. A couple of short sections for a large multi-file one. If a response is running past ~15 lines of prose, something in it is probably narration.
+### Sizing it
+
+A rough budget: ~25 words for the headline, ~12 per file touched, ~25 per caveat with two caveats at most. A one-file fix lands near 40 words; a five-file feature near 120. Past ~150 words on a change of any size, the extra is almost certainly narration.
+
+**The file list is where padding creeps back in on large changes.** One line per file saying *what it does now*, not how it does it. "token-bucket limiter, 100/min per key" earns its place; "lock-guarded, injectable clock, sweeps idle buckets every five minutes" is the diff talking — the reader can open the file for that. Implementation detail is not a caveat wearing a hat.
+
+A caveat earns its line only if it changes what the reader does next: a limit they'd otherwise hit, a decision they now have to make, a place the code is knowingly weaker than they'd assume. "This is in-process, so N workers means N× the limit" changes their deployment plan. "State is stored in a dictionary" does not.
 
 ## Work: never compress these
 

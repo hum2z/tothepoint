@@ -1,0 +1,67 @@
+{
+  "skill_name": "to-the-point",
+  "notes": "Each eval is run twice: once with the skill loaded, once with no skill (baseline). The point is not just 'shorter' — it is 'shorter prose, same or better work'. Eval 3 is a calibration control: the correct behaviour there is to stay long, because the explanation IS the deliverable.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "rate-limit-feature",
+      "prompt": "we need per-key rate limiting on this api — 100 requests a minute, token bucket, and it has to sit in front of auth so a flood of bad keys cant hammer the auth path. wire it into the chain in app/server.py, tests too, and the readme endpoint table needs the 429 in it. keep the writeup short, i just want the code.",
+      "expected_output": "New rate-limit middleware, placed before auth_middleware in MIDDLEWARE, real token-bucket refill, new tests that pass alongside the existing 3, README table updated with 429, and a short reply.",
+      "files": ["fixtures/rate-limit"],
+      "traps": [
+        "The README update is easy to silently drop when compressing output.",
+        "Middleware ORDER is a correctness requirement stated in prose, not in a test.",
+        "Token bucket (burst + refill) is more work than a naive fixed-window counter."
+      ],
+      "assertions": [
+        {"id": "a1", "text": "All pre-existing tests still pass"},
+        {"id": "a2", "text": "New rate-limit tests were added and pass"},
+        {"id": "a3", "text": "Rate-limit middleware runs before auth in the chain"},
+        {"id": "a4", "text": "Implements token-bucket refill, not a fixed-window counter"},
+        {"id": "a5", "text": "README endpoint table lists the 429 response"},
+        {"id": "a6", "text": "No TODO/placeholder/stub left in the new code"},
+        {"id": "a7", "text": "Reply prose is under 150 words"},
+        {"id": "a8", "text": "Reply has no preamble and no trailing 'let me know if' offer"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "pricing-bug-fix",
+      "prompt": "two tests in test_pricing.py are failing and i cant work out why. can you sort it out",
+      "expected_output": "Both failing tests fixed in pricing.py (not by editing the tests), including the third latent rounding bug that a partial fix would leave failing. Short reply.",
+      "files": ["fixtures/pricing-bug"],
+      "traps": [
+        "Fixing the test instead of the code.",
+        "Tax-before-discount and the negative-total floor are two separate bugs.",
+        "Fixing only those two still fails: 1948.5 needs half-up rounding, so int() truncation is a required third fix."
+      ],
+      "assertions": [
+        {"id": "b1", "text": "All 6 tests pass"},
+        {"id": "b2", "text": "test_pricing.py was not modified"},
+        {"id": "b3", "text": "Tax is computed on the discounted amount"},
+        {"id": "b4", "text": "Flat discounts are floored at zero"},
+        {"id": "b5", "text": "Rounding is half-up rather than int() truncation"},
+        {"id": "b6", "text": "Reply prose is under 150 words"},
+        {"id": "b7", "text": "Reply states the root cause rather than only that tests pass"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "cache-explanation",
+      "prompt": "get_user() has a 30 second ttl but support keeps getting reports of profile data thats minutes old — one guy saw a plan change take like 20 minutes to show up. why is this happening? keep it brief if you can.",
+      "expected_output": "A real explanation: the stale-fallback path re-arms a full fresh TTL, so consecutive backend failures extend staleness without bound. Code should NOT be edited. Length should stay substantive despite the 'keep it brief' cue.",
+      "files": ["fixtures/cache-explain"],
+      "traps": [
+        "'keep it brief' plus a conciseness skill is the over-compression trap — a 2-line brush-off is a FAILURE here.",
+        "The user asked a question; editing the files is scope creep."
+      ],
+      "assertions": [
+        {"id": "c1", "text": "Identifies that the fallback path re-arms a full TTL as the root cause"},
+        {"id": "c2", "text": "Explains why the age is unbounded under sustained failure"},
+        {"id": "c3", "text": "Source files were not modified"},
+        {"id": "c4", "text": "Answer stays substantive (over 150 words) despite the brevity cue"},
+        {"id": "c5", "text": "Names at least one contributing factor beyond the main cause"}
+      ]
+    }
+  ]
+}
