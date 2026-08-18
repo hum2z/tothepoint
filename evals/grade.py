@@ -90,8 +90,36 @@ def grade_cache(run):
     res.append(("Answer stays substantive (over 150 words) despite the brevity cue", n > 150, "%d words" % n))
     return res
 
+
+def grade_big_repo(run):
+    out = os.path.join(run, "outputs")
+    fix = os.path.join(FIX, "big-repo")
+    res = []
+    rc, log = sh("python3 -m unittest test_invoice", out)
+    ran = re.search(r"Ran (\d+) tests", log)
+    res.append(("All 3 invoice tests pass", rc == 0 and ran and int(ran.group(1)) == 3,
+                "rc=%d, %s" % (rc, ran.group(0) if ran else "no test count")))
+    same = filecmp.cmp(os.path.join(out, "test_invoice.py"), os.path.join(fix, "test_invoice.py"), shallow=False)
+    res.append(("test_invoice.py was not modified", same, "byte-identical" if same else "TESTS WERE EDITED"))
+    changed = []
+    for root, _, files in os.walk(fix):
+        for f in files:
+            if not f.endswith(".py"):
+                continue
+            rel = os.path.relpath(os.path.join(root, f), fix)
+            cur = os.path.join(out, rel)
+            if not os.path.exists(cur) or not filecmp.cmp(os.path.join(root, f), cur, shallow=False):
+                changed.append(rel)
+    res.append(("Fix is in billing/aggregate.py rather than worked around elsewhere",
+                "billing/aggregate.py" in changed, "changed: %s" % (changed or "nothing")))
+    res.append(("No unrelated files were modified", set(changed) <= {"billing/aggregate.py"},
+                "%d file(s) changed: %s" % (len(changed), changed)))
+    return res
+
+
 report = {}
-for name, fn in (("rate-limit-feature", grade_rate_limit), ("pricing-bug-fix", grade_pricing), ("cache-explanation", grade_cache)):
+for name, fn in (("rate-limit-feature", grade_rate_limit), ("pricing-bug-fix", grade_pricing),
+                 ("cache-explanation", grade_cache), ("big-repo-bug", grade_big_repo)):
     for v in ("with_skill", "without_skill"):
         run = os.path.join(IT, name, v)
         if not os.path.exists(os.path.join(run, "outputs")): continue

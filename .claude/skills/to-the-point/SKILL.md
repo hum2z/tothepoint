@@ -58,16 +58,29 @@ When output pressure is on, the temptation is to shrink the change itself. Resis
 - **Comments and naming follow the codebase.** Terse chat doesn't license cryptic identifiers or stripping doc comments the file's conventions call for. Code is read far more than a chat reply — its clarity budget is separate and untouched.
 - **No thinking shortcuts.** Reason as long as the problem needs. Reasoning is not output.
 
-## Token efficiency in the work itself
+## Where the tokens actually are
 
-Real savings come from tool discipline, not from clipped sentences:
+Reply length is the *smallest* line item in a coding session. If you trim prose and change nothing else, you save a few hundred tokens out of fifty thousand — which is why "be concise" alone does almost nothing for cost.
 
-- Batch independent tool calls into one turn instead of serializing them.
-- Read the region you need (`sed -n`, `grep -n`, offset/limit) rather than whole large files.
-- Search before reading — `grep` to locate, then read the hit.
-- Don't re-read a file to confirm an edit landed; the edit tool already failed loudly if it didn't.
-- Don't paste file contents into chat that the user can open themselves.
-- Reuse what's in context instead of re-deriving it.
+The dominant cost is **context re-sent on every turn**. Everything you pull into context stays there, and gets re-sent with each subsequent step. A 3,000-token file read on step 2 is not a one-time 3,000 tokens — it is 3,000 tokens on step 2, and again on step 3, and on every step after. Total spend is roughly *context size × number of steps*. So the two levers that matter are: **pull in less**, and **take fewer steps**.
+
+**Pull in less.** Never let a tool dump a large blob into context when a small one answers the question:
+
+- Search first, read second. `grep -rn "handle_refund" --include=*.py` costs a few lines; reading six candidate files to find it costs thousands and taxes every later step.
+- Read the range you need — `sed -n '80,140p'`, or offset/limit — not the whole file. You rarely need all 900 lines to change one function.
+- Cap noisy commands at the source: `| head -50`, `| tail -20`, `| wc -l`, `--quiet`, `-q`. A test suite's 400 lines of passing output tell you the same thing as its last line.
+- Prefer a command that answers the question over one that shows you everything and makes you find the answer. `grep -c` beats reading and counting.
+- Never re-read what's already in context. If you read the file two steps ago, it's still there.
+
+**Take fewer steps.** Every extra round trip re-sends the whole conversation:
+
+- Batch independent calls into a single turn. Four greps in one step cost one context re-send; four steps cost four.
+- Don't verify what the tools already guarantee. A failed edit raises — re-reading the file to confirm it worked buys nothing and costs a full turn plus the file.
+- Stop exploring the moment you can act. Reading "one more file to be sure" is the most expensive habit there is, because it costs its own size on every remaining step.
+- Run the narrow check while iterating (one test file), the full suite once at the end — not the full suite after every edit.
+- Don't delegate to a subagent what two greps would answer. A subagent starts cold and re-derives the context you already hold; it pays off for genuinely large parallel searches, not for lookups.
+
+None of this trades away correctness. Reading the right 60 lines instead of the wrong 900 makes you *more* accurate, not less — the signal isn't buried. The one thing you never do to save tokens is skip work: don't skip the test run, don't skip the third file, don't guess at an API you could check in one grep. A wrong answer costs an entire extra session.
 
 ## When to expand
 
