@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+import shlex
 import subprocess
 
 W = os.environ.get("TTP_WORKSPACE", os.path.expanduser("~/ttp-workspace"))
@@ -28,7 +29,9 @@ def words(path):
     return len(t.split()), t
 
 def probe(out, code):
-    return sh('python3 -c %s' % json.dumps(code), out)
+    # shlex.quote, not json.dumps: json escapes real newlines to a literal
+    # backslash-n, which python -c then chokes on.
+    return sh("python3 -c %s" % shlex.quote(code), out)
 
 def grade_rate_limit(run):
     out = os.path.join(run, "outputs"); res = []
@@ -40,13 +43,26 @@ def grade_rate_limit(run):
     newt = glob.glob(os.path.join(out, "tests", "*rate*")) + glob.glob(os.path.join(out, "tests", "*limit*"))
     res.append(("New rate-limit tests were added and pass", bool(newt) and ok and n > 3,
                 "new test files: %s; ran %d tests, rc=%d" % ([os.path.basename(f) for f in newt], n, rc)))
-    rc2, order = probe(out, "from app.server import MIDDLEWARE; print([getattr(m,'__name__',type(m).__name__) for m in MIDDLEWARE])")
-    order = order.strip()
-    lo = order.lower()
-    idx_rl = min([lo.find(k) for k in ("rate", "limit", "throttl") if lo.find(k) >= 0] or [-1])
-    idx_au = lo.find("auth")
-    res.append(("Rate-limit middleware runs before auth in the chain",
-                idx_rl >= 0 and idx_au >= 0 and idx_rl < idx_au, order))
+    # Functional, not name-based: the middleware may be a closure from a factory,
+    # so the only trustworthy check is behaviour. Flood one invalid key; if the
+    # limiter sits in front of auth, requests stop coming back 401 and start
+    # coming back 429 — auth never sees them.
+    rc2, order = probe(out, """
+from app.handlers import ROUTES
+from app.server import App, Request
+import app.server as srv
+mw = srv.build_middleware() if hasattr(srv, 'build_middleware') else srv.MIDDLEWARE
+codes = [App(ROUTES, mw).handle(Request('GET', '/v1/items', {'X-Api-Key': 'BAD'})).status
+         for _ in range(150)]
+print(codes[0], codes[-1], 429 in codes)
+""")
+    # Pull the result out by pattern — the probe's stdout can be followed by
+    # warnings on stderr, so splitting the whole blob on whitespace is fragile.
+    m = re.search(r"\b(\d{3}) (\d{3}) (True|False)\b", order)
+    shed = bool(m) and m.group(2) == "429" and m.group(3) == "True"
+    res.append(("Rate-limit middleware sheds before auth is reached", shed,
+                "150 bad-key requests -> first=%s last=%s, 429 seen=%s" % m.groups() if m
+                else "probe failed: %s" % order.strip()[:120]))
     src = ""
     for f in glob.glob(os.path.join(out, "app", "*.py")):
         src += open(f).read()
@@ -57,8 +73,11 @@ def grade_rate_limit(run):
     in_table = any("429" in l and l.strip().startswith("|") for l in rd.splitlines())
     res.append(("README endpoint table lists the 429 response", in_table,
                 "429 present in a table row" if in_table else ("429 in README but not in the table" if "429" in rd else "429 absent from README")))
+    # `...` only counts as a stub when it is the statement itself — an ellipsis
+    # inside a comment is just prose continuing onto the next line.
+    stub_re = re.compile(r"\b(TODO|FIXME|NotImplementedError)\b|^\s*\.\.\.\s*$")
     stubs = [l.strip() for f in glob.glob(os.path.join(out, "app", "*.py")) + glob.glob(os.path.join(out, "tests", "*.py"))
-             for l in open(f).read().splitlines() if re.search(r"TODO|FIXME|NotImplementedError|\.\.\.\s*$", l)]
+             for l in open(f).read().splitlines() if stub_re.search(l.split("#")[0] if "#" in l else l)]
     res.append(("No TODO/placeholder/stub left in the new code", not stubs, "; ".join(stubs[:3]) or "none found"))
     return res
 
